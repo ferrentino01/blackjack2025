@@ -1,99 +1,94 @@
 import streamlit as st
-import random
+from deck import Deck
+from player import Player
 
-# --- CLASSI ---
-class Card:
-    def __init__(self, suit, value):
-        self.suit = suit  # '♠', '♥', '♦', '♣'
-        self.value = value  # '2'–'10', 'J', 'Q', 'K', 'A'
+STARTING_BALANCE = 10000
+MIN_BET = 1
 
-    def get_points(self):
-        if self.value in ['J', 'Q', 'K']:
-            return 10
-        elif self.value == 'A':
-            return 11
-        else:
-            return int(self.value)
-
-    def __str__(self):
-        return f"{self.value}{self.suit}"
-
-
-class Deck:
-    def __init__(self):
-        suits = ['♠', '♥', '♦', '♣']
-        values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
-        self.cards = [Card(suit, value) for suit in suits for value in values]
-        random.shuffle(self.cards)
-
-    def draw(self):
-        return self.cards.pop()
-
-
-class Player:
-    def __init__(self, name):
-        self.name = name
-        self.hand = []
-
-    def add_card(self, card):
-        self.hand.append(card)
-
-    def reset_hand(self):
-        self.hand = []
-
-    def get_points(self):
-        total = 0
-        aces = 0
-        for card in self.hand:
-            pts = card.get_points()
-            total += pts
-            if card.value == 'A':
-                aces += 1
-        while total > 21 and aces:
-            total -= 10
-            aces -= 1
-        return total
-
-
-# --- FUNZIONI DI STATO ---
-def reset_game():
+# Inizializza lo stato
+if "deck" not in st.session_state:
     st.session_state.deck = Deck()
     st.session_state.player = Player("Player")
     st.session_state.dealer = Player("Dealer")
-    st.session_state.game_over = False
-    st.session_state.message = ""
-    for _ in range(2):
-        st.session_state.player.add_card(st.session_state.deck.draw())
+    st.session_state.balance = STARTING_BALANCE
+    st.session_state.bet = MIN_BET
+    st.session_state.stats = {"giocate": 0, "vittorie": 0, "sconfitte": 0, "pareggi": 0}
+    st.session_state.phase = "bet"
 
+def reset_hand():
+    st.session_state.deck = Deck()
+    st.session_state.player.reset_hand()
+    st.session_state.dealer.reset_hand()
+    st.session_state.bet = MIN_BET
+    st.session_state.phase = "bet"
 
-# --- INIZIALIZZAZIONE ---
-if "player" not in st.session_state:
-    reset_game()
+st.title("🎮 Blackjack Web App")
+st.write(f"💰 Saldo attuale: {st.session_state.balance} monete")
 
-# --- UI ---
-st.title("🃏 Blackjack")
+if st.session_state.phase == "bet":
+    st.subheader("Inserisci la puntata")
+    bet = st.number_input("Quanto vuoi puntare?", min_value=MIN_BET, max_value=st.session_state.balance, value=MIN_BET, step=1)
+    if st.button("Inizia la mano"):
+        st.session_state.bet = bet
+        st.session_state.player.add_card(st.session_state.deck.draw_card())
+        st.session_state.dealer.add_card(st.session_state.deck.draw_card())
+        st.session_state.player.add_card(st.session_state.deck.draw_card())
+        st.session_state.dealer.add_card(st.session_state.deck.draw_card())
+        st.session_state.phase = "play"
 
-player = st.session_state.player
-deck = st.session_state.deck
+if st.session_state.phase == "play":
+    st.subheader("🁏 Mano in corso")
+    st.write(f"**Dealer**: {st.session_state.dealer.show_hand(hide_first=True)}")
+    st.write(f"**Player**: {st.session_state.player.show_hand()} ({st.session_state.player.calculate_points()} punti)")
+    st.write(f"🎯 Puntata: {st.session_state.bet} monete")
 
-st.subheader("Le tue carte:")
-st.write(" - ".join(str(c) for c in player.hand))
-st.write(f"Totale punti: **{player.get_points()}**")
-
-# --- BOTTONE PESCA ---
-if not st.session_state.game_over:
     if st.button("Pesca una carta"):
-        new_card = deck.draw()
-        player.add_card(new_card)
-        st.success(f"Hai pescato: {new_card}")
-        if player.get_points() > 21:
-            st.session_state.game_over = True
-            st.session_state.message = "💥 Hai sballato! Hai perso."
+        st.session_state.player.add_card(st.session_state.deck.draw_card())
+        if st.session_state.player.calculate_points() >= 21:
+            st.session_state.phase = "dealer"
+            st.experimental_rerun()
 
-# --- RISULTATO ---
-if st.session_state.game_over:
-    st.error(st.session_state.message)
+    if st.button("Stai"):
+        st.session_state.phase = "dealer"
+        st.experimental_rerun()
 
-# --- RESET ---
-if st.button("🔄 Nuova partita"):
-    reset_game()
+if st.session_state.phase == "dealer":
+    while st.session_state.dealer.calculate_points() < 17:
+        st.session_state.dealer.add_card(st.session_state.deck.draw_card())
+
+    dealer_pts = st.session_state.dealer.calculate_points()
+    player_pts = st.session_state.player.calculate_points()
+
+    st.subheader("🎯 Risultati finali")
+    st.write(f"**Dealer**: {st.session_state.dealer.show_hand()} ({dealer_pts} punti)")
+    st.write(f"**Player**: {st.session_state.player.show_hand()} ({player_pts} punti)")
+
+    st.session_state.stats["giocate"] += 1
+    if player_pts > 21:
+        st.error("Hai sballato. Hai perso!")
+        st.session_state.balance -= st.session_state.bet
+        st.session_state.stats["sconfitte"] += 1
+    elif dealer_pts > 21 or player_pts > dealer_pts:
+        st.success("Hai vinto!")
+        st.session_state.balance += st.session_state.bet
+        st.session_state.stats["vittorie"] += 1
+    elif player_pts == dealer_pts:
+        st.info("Pareggio.")
+        st.session_state.stats["pareggi"] += 1
+    else:
+        st.error("Hai perso.")
+        st.session_state.balance -= st.session_state.bet
+        st.session_state.stats["sconfitte"] += 1
+
+    st.write(f"💰 Nuovo saldo: {st.session_state.balance} monete")
+
+    if st.session_state.balance >= MIN_BET:
+        if st.button("🔁 Gioca un'altra mano"):
+            reset_hand()
+            st.experimental_rerun()
+    else:
+        st.warning("Non hai abbastanza monete per continuare.")
+
+    if st.button("Mostra statistiche finali"):
+        st.subheader("📊 Statistiche")
+        st.write(st.session_state.stats)
