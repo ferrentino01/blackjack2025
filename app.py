@@ -5,8 +5,8 @@ from player import Player
 STARTING_BALANCE = 10000
 MIN_BET = 1
 
-# Inizializza lo stato
-if "deck" not in st.session_state:
+# Inizializza session_state se non esiste
+if "balance" not in st.session_state:
     st.session_state.deck = Deck()
     st.session_state.player = Player("Player")
     st.session_state.dealer = Player("Dealer")
@@ -35,9 +35,10 @@ if st.session_state.phase == "bet":
         st.session_state.player.add_card(st.session_state.deck.draw_card())
         st.session_state.dealer.add_card(st.session_state.deck.draw_card())
         st.session_state.phase = "play"
+        st.experimental_rerun()
 
 if st.session_state.phase == "play":
-    st.subheader("🁏 Mano in corso")
+    st.subheader("🃏 Mano in corso")
     st.write(f"**Dealer**: {st.session_state.dealer.show_hand(hide_first=True)}")
     st.write(f"**Player**: {st.session_state.player.show_hand()} ({st.session_state.player.calculate_points()} punti)")
     st.write(f"🎯 Puntata: {st.session_state.bet} monete")
