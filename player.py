@@ -7,15 +7,27 @@ class Player:
         self.hand.append(card)
 
     def calculate_points(self):
-        points = sum(card.get_points() for card in self.hand)
-        # gestisci asso come 1 se necessario
-        aces = sum(1 for card in self.hand if card.value == 'A')
+        points = 0
+        aces = 0
+        for card in self.hand:
+            val = card.value
+            if val in ['J', 'Q', 'K']:
+                points += 10
+            elif val == 'A':
+                points += 11
+                aces += 1
+            else:
+                points += int(val)
         while points > 21 and aces:
             points -= 10
             aces -= 1
         return points
 
     def show_hand(self, hide_first=False):
-        if hide_first:
-            return "[??] " + " ".join(str(c) for c in self.hand[1:])
-        return " ".join(str(c) for c in self.hand)
+        if hide_first and len(self.hand) > 0:
+            return "[??] " + " ".join(str(card) for card in self.hand[1:])
+        else:
+            return " ".join(str(card) for card in self.hand)
+
+    def reset_hand(self):
+        self.hand = []
